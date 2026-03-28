@@ -1,0 +1,17 @@
+{
+  "private": true,
+  "scripts": {
+    "fmt": "oxfmt --write ..",
+    "fmt:check": "oxfmt --check ..",
+    "lint": "oxlint ..",
+    "lint:fix": "oxlint --fix ..",
+    "lint:skills": "node scripts/lint-skills.cjs",
+    "secretlint": "secretlint --secretlintrc ../.secretlintrc.json '**/*'"
+  },
+  "devDependencies": {
+    "@secretlint/secretlint-rule-preset-recommend": "^11.4.0",
+    "oxfmt": "^0.41.0",
+    "oxlint": "^1.56.0",
+    "secretlint": "^11.4.0"
+  }
+}

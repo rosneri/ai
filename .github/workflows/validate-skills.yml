@@ -1,0 +1,190 @@
+name: Validate Skills
+
+on:
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  shellcheck:
+    name: Shellcheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Run shellcheck on all scripts
+        run: shellcheck ci/scripts/*.sh
+
+  detect-changes:
+    name: Detect Changed Skills
+    runs-on: ubuntu-latest
+    outputs:
+      changed_skills: ${{ steps.detect.outputs.changed_skills }}
+      changed_skills_list: ${{ steps.detect.outputs.changed_skills_list }}
+      has_changes: ${{ steps.detect.outputs.has_changes }}
+      has_api_key: ${{ steps.check-key.outputs.has_api_key }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Detect changed skill directories
+        id: detect
+        env:
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+        run: ci/scripts/detect-changes.sh
+
+      - name: Check API key availability
+        id: check-key
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          if [ -n "$ANTHROPIC_API_KEY" ]; then
+            echo "has_api_key=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_api_key=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  validate-structure:
+    name: Validate Skill Structure
+    needs: detect-changes
+    if: needs.detect-changes.outputs.has_changes == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Validate SKILL.md structure
+        run: echo "${{ needs.detect-changes.outputs.changed_skills }}" | ci/scripts/validate-structure.sh
+
+  format-check:
+    name: Format Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: oven-sh/setup-bun@v2
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+        working-directory: ci
+
+      - name: Check formatting
+        run: ci/node_modules/.bin/oxfmt --check .
+
+      - name: Lint JS/CJS files
+        run: ci/node_modules/.bin/oxlint .
+
+      - name: Scan for secrets
+        run: ci/node_modules/.bin/secretlint --secretlintrc .secretlintrc.json '**/*'
+
+  check-readme:
+    name: Check README Listing
+    needs: detect-changes
+    if: needs.detect-changes.outputs.has_changes == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Verify skills are listed in README
+        run: echo "${{ needs.detect-changes.outputs.changed_skills }}" | ci/scripts/check-readme.sh
+
+  lint-skills:
+    name: Lint Skill Structure
+    needs: detect-changes
+    if: needs.detect-changes.outputs.has_changes == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Lint changed skills
+        env:
+          CHANGED_SKILLS: ${{ needs.detect-changes.outputs.changed_skills }}
+        run: echo "$CHANGED_SKILLS" | xargs node ci/scripts/lint-skills.cjs
+
+  ai-duplicate-check:
+    name: "AI: Duplicate Check (${{ matrix.skill }})"
+    needs: [detect-changes, validate-structure]
+    if: needs.detect-changes.outputs.has_changes == 'true' && needs.detect-changes.outputs.has_api_key == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        skill: ${{ fromJson(needs.detect-changes.outputs.changed_skills_list) }}
+    permissions:
+      contents: read
+      pull-requests: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+
+      - name: Prepare prompt
+        id: prompt
+        run: |
+          PROMPT=$(sed 's/\$SKILL/${{ matrix.skill }}/g' ci/prompts/duplicate-check.md)
+          {
+            echo "prompt<<EOF"
+            echo "$PROMPT"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          use_sticky_comment: true
+          prompt: ${{ steps.prompt.outputs.prompt }}
+          claude_args: |
+            --model claude-haiku-4-5-20251001
+            --max-turns 20
+            --allowedTools Read,Glob,Grep,WebSearch,WebFetch,"Bash(ls)"
+
+  ai-quality-review:
+    name: "AI: Quality Review"
+    needs: [detect-changes, validate-structure, format-check, lint-skills]
+    if: needs.detect-changes.outputs.has_changes == 'true' && needs.detect-changes.outputs.has_api_key == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Prepare prompt
+        id: prompt
+        env:
+          CHANGED_SKILLS: ${{ needs.detect-changes.outputs.changed_skills }}
+        run: |
+          > /tmp/skills.md
+          while IFS= read -r skill_dir; do
+            [ -z "$skill_dir" ] && continue
+            find "$skill_dir" -maxdepth 2 -type f -print0 | sort -z | while IFS= read -r -d '' file; do
+              printf '\n### `%s`\n\n```\n' "$file" >> /tmp/skills.md
+              cat "$file" >> /tmp/skills.md
+              printf '\n```\n' >> /tmp/skills.md
+            done
+          done <<< "$CHANGED_SKILLS"
+          sed '/\$SKILLS/{
+            r /tmp/skills.md
+            d
+          }' ci/prompts/quality-review.md > /tmp/prompt.md
+          {
+            echo "prompt<<EOF"
+            cat /tmp/prompt.md
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          use_sticky_comment: true
+          prompt: ${{ steps.prompt.outputs.prompt }}
+          claude_args: |
+            --model claude-haiku-4-5-20251001
+            --max-turns 10
+            --allowedTools Read,Glob,Grep,"Bash(git diff)"
