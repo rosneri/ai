@@ -1,7 +1,7 @@
 {
   "name": "code-quiz",
   "description": "Before you open a PR, prove you understand the code the agent wrote. Generates a literate explainer of the diff, then quizzes you with five comprehension questions that probe how the change actually works — mechanism, blast radius, design trade-offs, and edge cases. You don't pass until you can explain it. A 'speed regulator' that stops AI from outrunning your understanding (inspired by Geoffrey Litt's explain-diff quiz and usegater.app).",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "author": {
     "name": "rosneri"
   }

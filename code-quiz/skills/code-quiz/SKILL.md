@@ -161,7 +161,14 @@ per question** — never batch them, because you must grade and teach between qu
 
   Strict grader — a distractor that's "close" is still missed. A free-typed "Other" answer that's
   vague on a load-bearing point is partial at best.
-- Picking a distractor or "I don't know" is an honest miss; teach it and move to the next call.
+- **Every question carries a fourth option: "I don't know — tell me."** (One option, not two —
+  the tool caps at four options and the three content options use three slots.) Its `description`:
+  admit it and get the full explanation. Always place it last so it's never confused with a
+  content option and doesn't disturb the randomized-slot rule.
+- Picking a distractor is an honest miss — explain the flaw without spoiling, per the grading rule
+  above. Picking **"I don't know — tell me"** is also a miss for scoring, but it's the one case
+  where you give the full correct answer immediately and teach it properly — the user asked to be
+  taught, so don't withhold. Then move to the next call.
 - Keep a `header` per question naming the category (e.g. "Mechanism", "Blast radius").
 - Then ask the next question. Repeat for all five.
 
