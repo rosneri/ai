@@ -1,0 +1,8 @@
+{
+  "name": "ddd-architecture",
+  "description": "Review feature code against DDD and hexagonal architecture principles. Validates domain entities, value objects, use cases, adapters, folder structure, file naming, and test placement.",
+  "version": "0.1.0",
+  "author": {
+    "name": "rosneri"
+  }
+}

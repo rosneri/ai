@@ -1,0 +1,8 @@
+{
+  "name": "bruno",
+  "description": "Bruno API client skill \u2014 .bru file format, JavaScript API reference, authentication patterns, testing with Chai.js, and Git-first collection management.",
+  "version": "0.1.0",
+  "author": {
+    "name": "rosneri"
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "name": "git-operations",
+  "description": "Git operations enforcer - manages branches, commits, and pull requests with strict naming conventions and quality gates",
+  "version": "0.1.0",
+  "author": {
+    "name": "rosneri"
+  }
+}

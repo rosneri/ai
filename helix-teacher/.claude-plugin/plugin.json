@@ -1,0 +1,8 @@
+{
+  "name": "helix-teacher",
+  "description": "Teaches Helix editor by analyzing the user's existing configuration, explaining keybindings and LSP setup, and answering questions. Use when the user asks about Helix, their helix config, keybindings, LSP setup, themes, or wants help setting up or learning Helix. Also triggers on \"helix keybindings\", \"explain my helix config\", \"helix setup\", \"learn helix\", or \"hx config\".",
+  "version": "0.1.0",
+  "author": {
+    "name": "rosneri"
+  }
+}

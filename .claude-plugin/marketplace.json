@@ -1,0 +1,53 @@
+{
+  "name": "rosneri",
+  "owner": {
+    "name": "rosneri"
+  },
+  "plugins": [
+    {
+      "name": "bruno",
+      "source": "./bruno",
+      "description": "Bruno API client skill \u2014 .bru file format, JavaScript API reference, authentication patterns, testing with Chai.js, and Git-first collection management."
+    },
+    {
+      "name": "code-quiz",
+      "source": "./code-quiz",
+      "description": "Before you open a PR, prove you understand the code the agent wrote. Generates a literate explainer of the diff, then quizzes you with five comprehension questions that probe how the change actually works \u2014 mechanism, blast radius, design trade-offs, and edge cases. You don't pass until you can explain it. A 'speed regulator' that stops AI from outrunning your understanding (inspired by Geoffrey Litt's explain-diff quiz and usegater.app)."
+    },
+    {
+      "name": "ddd-architecture",
+      "source": "./ddd-architecture",
+      "description": "Review feature code against DDD and hexagonal architecture principles. Validates domain entities, value objects, use cases, adapters, folder structure, file naming, and test placement."
+    },
+    {
+      "name": "feature-planner",
+      "source": "./feature-planner",
+      "description": "Create Phase 0 documentation for a new feature. Generates docs folder structure with plan.md, glossary.md, business-logic.md, architecture.md, errors.md, questions.md, and adr/ folder. Use before any code is written."
+    },
+    {
+      "name": "git-operations",
+      "source": "./git-operations",
+      "description": "Git operations enforcer - manages branches, commits, and pull requests with strict naming conventions and quality gates"
+    },
+    {
+      "name": "helix-teacher",
+      "source": "./helix-teacher",
+      "description": "Teaches Helix editor by analyzing the user's existing configuration, explaining keybindings and LSP setup, and answering questions. Use when the user asks about Helix, their helix config, keybindings, LSP setup, themes, or wants help setting up or learning Helix. Also triggers on \"helix keybindings\", \"explain my helix config\", \"helix setup\", \"learn helix\", or \"hx config\"."
+    },
+    {
+      "name": "neovim-teacher",
+      "source": "./neovim-teacher",
+      "description": "Teaches Neovim by analyzing the user's existing configuration, explaining installed plugins and keymaps, and answering questions. Use when the user asks about Neovim, Vim, their nvim config, plugins, keymaps, LSP setup, or wants help setting up or learning Neovim. Also triggers on \"what plugins do I have\", \"explain my neovim\", \"neovim setup\", or \"learn vim\"."
+    },
+    {
+      "name": "node-debug",
+      "source": "./node-debug",
+      "description": "Debug a running Node.js process via CDP (Chrome DevTools Protocol). Set breakpoints, step through code, inspect variables, and evaluate expressions \u2014 all headless, no GUI needed."
+    },
+    {
+      "name": "watch-ci",
+      "source": "./watch-ci",
+      "description": "Poll CI checks on a PR until they finish, reporting progress. Use when the user says \"watch CI\", \"monitor CI\", \"wait for CI\", \"watch the build\", \"let me know when CI finishes\", or wants to track CI check progress on a PR."
+    }
+  ]
+}

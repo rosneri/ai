@@ -1,0 +1,8 @@
+{
+  "name": "neovim-teacher",
+  "description": "Teaches Neovim by analyzing the user's existing configuration, explaining installed plugins and keymaps, and answering questions. Use when the user asks about Neovim, Vim, their nvim config, plugins, keymaps, LSP setup, or wants help setting up or learning Neovim. Also triggers on \"what plugins do I have\", \"explain my neovim\", \"neovim setup\", or \"learn vim\".",
+  "version": "0.1.0",
+  "author": {
+    "name": "rosneri"
+  }
+}

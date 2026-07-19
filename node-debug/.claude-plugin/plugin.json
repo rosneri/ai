@@ -1,0 +1,8 @@
+{
+  "name": "node-debug",
+  "description": "Debug a running Node.js process via CDP (Chrome DevTools Protocol). Set breakpoints, step through code, inspect variables, and evaluate expressions \u2014 all headless, no GUI needed.",
+  "version": "0.1.0",
+  "author": {
+    "name": "rosneri"
+  }
+}

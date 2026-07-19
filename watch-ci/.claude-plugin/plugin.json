@@ -1,0 +1,8 @@
+{
+  "name": "watch-ci",
+  "description": "Poll CI checks on a PR until they finish, reporting progress. Use when the user says \"watch CI\", \"monitor CI\", \"wait for CI\", \"watch the build\", \"let me know when CI finishes\", or wants to track CI check progress on a PR.",
+  "version": "0.1.0",
+  "author": {
+    "name": "rosneri"
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "name": "feature-planner",
+  "description": "Create Phase 0 documentation for a new feature. Generates docs folder structure with plan.md, glossary.md, business-logic.md, architecture.md, errors.md, questions.md, and adr/ folder. Use before any code is written.",
+  "version": "0.1.0",
+  "author": {
+    "name": "rosneri"
+  }
+}

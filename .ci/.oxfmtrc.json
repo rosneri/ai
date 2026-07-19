@@ -1,0 +1,15 @@
+{
+  "$schema": "./ci/node_modules/oxfmt/configuration_schema.json",
+  "printWidth": 100,
+  "tabWidth": 2,
+  "useTabs": false,
+  "semi": true,
+  "singleQuote": false,
+  "trailingComma": "all",
+  "bracketSpacing": true,
+  "arrowParens": "always",
+  "endOfLine": "lf",
+  "proseWrap": "preserve",
+  "insertFinalNewline": true,
+  "ignorePatterns": ["node_modules", "ci"]
+}
