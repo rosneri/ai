@@ -23,17 +23,29 @@ question, repeatedly: **"and then what?"** Each order's consequences become the 
 next, until the chain stops producing insight. Most bad decisions look good at order 1; most of
 their cost lives at orders 2 and 3.
 
-## Step 1 — Pin down the subject
+## Step 1 — Explore the problem space first
 
-Restate the decision/change in one sentence and confirm the frame:
+Consequences of a half-understood action are fiction. Before tracing anything, actually
+understand the subject:
+
+- **Investigate what you can yourself.** If the decision touches something inspectable — a
+  codebase, a repo, a config, a document, data — go read it. Map the real system: who calls
+  what, where the money/data/users actually flow, what constraints already exist. Don't trace
+  consequences through an imagined system when the real one is available.
+- **Reconstruct the context**: what problem is this action solving, what has been tried before,
+  what alternatives were on the table, and what does "success" mean to the person deciding?
+- **Ask when you can't infer.** If load-bearing facts are missing — scale, who's affected,
+  reversibility, timeline, what constraint is binding — ask **2–3 targeted questions** (via
+  `AskUserQuestion` when options are enumerable, free-form otherwise). Ask only what changes the
+  analysis; don't interrogate for completeness.
+
+Then pin the frame and say it back:
 
 - **The action** — what is actually being done (not the hoped-for outcome).
 - **The system it lands in** — who and what it touches: people, code, money, incentives, time.
-- **Depth** — default to **3 orders**; honor an explicit "to N orders" in the argument. Go past 3
-  only while each new order still surfaces something non-obvious.
-
-If the description is too vague to name the system it lands in, ask one clarifying question —
-consequences of an unpinned action are fiction.
+- **Depth** — default to **5 orders**; honor an explicit "to N orders" in the argument. If the
+  chains genuinely dry up earlier, say so and stop rather than padding orders with restatements —
+  a forced 5th order is worse than an honest 3rd.
 
 ## Step 2 — Trace the orders
 
