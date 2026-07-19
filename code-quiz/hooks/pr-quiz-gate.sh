@@ -31,7 +31,9 @@ case "$tool" in
     is_pr_open=true
     ;;
   Bash)
-    # The command lives in tool_input.command; `gh pr create|ready` only appears there.
+    # Greps the whole JSON payload, not just tool_input.command — extracting one JSON field in
+    # bash is fragile. Known false positive: any Bash payload merely containing the phrase (e.g.
+    # a commit message) gets denied. Accepted: rare, and consistent with guarding laziness.
     if printf '%s' "$input" | grep -Eq 'gh[[:space:]]+pr[[:space:]]+(create|ready)'; then
       is_pr_open=true
     fi

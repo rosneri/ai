@@ -111,6 +111,10 @@ per question** — never batch them, because you must grade and teach between qu
   a plausible-but-absent behavior; the reverse of the real cause). Weak/silly options make it
   guessable and waste the question. The tool always adds "Other" so a user who actually understands
   can type their own answer in their words — that's the real-comprehension path, reward it.
+- **No length tell.** Distractors must match the correct option's length and specificity — a
+  correct answer that's the longest, most detailed option is pickable without reading the diff.
+  Either trim the correct option or fatten the distractors until they're indistinguishable by
+  form alone.
 - **Randomize the correct option's position** — do not default it to first (that's a tell; a user
   learns to pick option 1 and stops thinking). Ignore the tool's "recommended option first"
   convention here — a quiz has no recommendation. For question `N` (1–5), place the correct option
