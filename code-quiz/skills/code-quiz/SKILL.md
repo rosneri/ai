@@ -27,6 +27,30 @@ can do that) — it's to keep you a real participant who can propose the next ch
 Inspired by Geoffrey Litt's `explain-diff` quiz and usegater.app. The rule, from Litt: **don't
 send code to others until you can pass the quiz** — and hold the same bar when reviewing others'.
 
+## Step 0 — Navigation (direct invocation only)
+
+How this skill was entered decides whether to ask where to go:
+
+- **Entered via the PR gate** (the PreToolUse hook just denied a PR-open): skip this step — the
+  user needs the gating quiz; go straight to Step 1 in **quiz mode**.
+- **Entered directly** (slash command, "quiz me on this", any explicit ask): first present a
+  navigation question via `AskUserQuestion` (header "Mode") so the user picks what they're here
+  for. Options (pick the 4 that fit the situation; crucial check first, recommended):
+  - **Crucial understanding check** _(recommended)_ — the full gating quiz (Steps 1–6); passing
+    writes the pass-marker and opens the PR gate.
+  - **Deepen my knowledge** — skip gating; explainer, then Step 7 deepen rounds (architecture,
+    theory, why the work exists). Never touches the gate.
+  - **Learn the glossary** — walk the unique wording this change introduces or leans on (domain
+    terms, invented names, abbreviations): what each means in this code and how it differs from
+    near-synonyms, then a short glossary-only round of questions. Never touches the gate.
+  - **Just explain it to me** — the Step 2 orientation + literate explainer only, no questions.
+  - Other options worth swapping in when they fit: **Quiz me as a reviewer** (same quiz, framed
+    for reviewing someone else's PR — no gate involved), **Test the questions (`--self`)**,
+    **Re-quiz my weak areas** (when a previous round this session had misses).
+
+  All modes still run Step 1 (get the diff) and open with the Step 2 orientation. Only the
+  crucial check can write the pass-marker.
+
 ## Step 1 — Get the diff
 
 Resolve the argument to a unified diff:
