@@ -45,6 +45,11 @@
       "description": "Debug a running Node.js process via CDP (Chrome DevTools Protocol). Set breakpoints, step through code, inspect variables, and evaluate expressions \u2014 all headless, no GUI needed."
     },
     {
+      "name": "thinking",
+      "source": "./thinking",
+      "description": "Structured thinking tools. Currently ships n-order-consequences: trace second-, third-, and nth-order effects of a decision or change so you don't stop at first-order thinking."
+    },
+    {
       "name": "watch-ci",
       "source": "./watch-ci",
       "description": "Poll CI checks on a PR until they finish, reporting progress. Use when the user says \"watch CI\", \"monitor CI\", \"wait for CI\", \"watch the build\", \"let me know when CI finishes\", or wants to track CI check progress on a PR."

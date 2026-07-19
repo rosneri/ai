@@ -1,0 +1,8 @@
+{
+  "name": "thinking",
+  "description": "Structured thinking tools. Currently ships n-order-consequences: trace second-, third-, and nth-order effects of a decision or change so you don't stop at first-order thinking.",
+  "version": "0.1.0",
+  "author": {
+    "name": "rosneri"
+  }
+}
