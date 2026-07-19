@@ -116,6 +116,15 @@ change demands_, never its size.
 Ask each question through the **AskUserQuestion** tool (the interactive question UI), **one call
 per question** — never batch them, because you must grade and teach between questions.
 
+- **Context before every question.** Immediately before each `AskUserQuestion` call, write a short
+  setup paragraph (2–4 sentences) in the conversation: which part of the change this question is
+  about, what that code is responsible for, and any facts needed to reason about it — the
+  surrounding mechanism, who calls it, what constraint it lives under. The bar: someone who read
+  the explainer but doesn't remember the exact lines should be able to **deduce** the answer from
+  this context plus reasoning. Never let the context give the answer away — set the scene, don't
+  spoil it. Also use each option's `description` field to expand on what picking it would mean
+  (its mechanism or consequence), keeping descriptions balanced across options so they don't
+  become a tell.
 - One question per `AskUserQuestion` call. Give it **three** options: exactly one correct, two
   **strong distractors** — near-misses a shallow reader would pick (right mechanism, wrong detail;
   a plausible-but-absent behavior; the reverse of the real cause). Weak/silly options make it
