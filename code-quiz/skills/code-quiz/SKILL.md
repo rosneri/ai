@@ -142,9 +142,17 @@ per question** — never batch them, because you must grade and teach between qu
   so slots don't follow a pattern across questions and vary per commit — spotting one answer's
   position reveals nothing about the next. Fill the other two slots with the distractors in any
   order.
-- After they answer, grade: **correct / partial / missed**. Say which, give the real answer and
-  _why it matters_. Strict grader — a distractor that's "close" is still missed. A free-typed
-  "Other" answer that's vague on a load-bearing point is partial at best.
+- After they answer, grade: **correct / partial / missed** — and open with a clear, unmissable
+  verdict line (e.g. "✅ Correct" / "🟡 Partial" / "❌ Missed") before any explanation.
+  - **On correct:** confirm it and add one sentence on _why it matters_ in this change.
+  - **On partial/missed:** explain what was wrong with _their_ answer — the flaw in that reasoning,
+    what in the code contradicts it — **without stating the right answer outright** when you can
+    avoid it. Point them at the mechanism to reconsider; leaking part of the answer in the process
+    is acceptable — the goal is that they end up understanding the PR, not that the answer stays
+    secret. Save the full correct answer for the Step 5 debrief or a re-quiz walk-through.
+
+  Strict grader — a distractor that's "close" is still missed. A free-typed "Other" answer that's
+  vague on a load-bearing point is partial at best.
 - Picking a distractor or "I don't know" is an honest miss; teach it and move to the next call.
 - Keep a `header` per question naming the category (e.g. "Mechanism", "Blast radius").
 - Then ask the next question. Repeat for all five.
