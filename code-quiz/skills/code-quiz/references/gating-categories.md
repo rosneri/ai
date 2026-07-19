@@ -21,6 +21,7 @@ Format: `slug — one-line description.`
 - error-propagation — where a thrown/rejected error surfaces; who catches it and what the caller/user sees.
 - dependency-behavior — what the called library/API actually does in the case relied on (throws? retries? returns null?).
 - state-machine — which state transitions are legal now; which state can get stuck.
+- glossary — the unique wording this PR introduces or leans on (domain terms, invented names, abbreviations); what a load-bearing term actually means in this code, and how it differs from a near-synonym already in the codebase.
 
 ## What it touches
 
