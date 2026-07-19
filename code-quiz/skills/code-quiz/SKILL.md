@@ -125,6 +125,14 @@ per question** — never batch them, because you must grade and teach between qu
   spoil it. Also use each option's `description` field to expand on what picking it would mean
   (its mechanism or consequence), keeping descriptions balanced across options so they don't
   become a tell.
+- **Multi-choice is allowed.** When a question is naturally "which of these…" (which behaviors
+  change, which callers are affected, which invariants still hold), set `multiSelect: true` and
+  make **one or two** of the three options correct — the rest strong distractors. Phrase the
+  question so it's clear several answers may apply, and never hint at how many. Grading is on the
+  exact set: all correct options picked and no distractor = correct; a right subset or one wrong
+  extra = partial; otherwise missed. Use at most 1–2 multi-choice questions per round — the
+  single-answer form stays the default. (The randomized-slot rule below applies to single-answer
+  questions; for multi-choice just avoid putting the correct options in a recognizable pattern.)
 - One question per `AskUserQuestion` call. Give it **three** options: exactly one correct, two
   **strong distractors** — near-misses a shallow reader would pick (right mechanism, wrong detail;
   a plausible-but-absent behavior; the reverse of the real cause). Weak/silly options make it
