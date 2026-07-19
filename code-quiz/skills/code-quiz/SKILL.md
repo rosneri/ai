@@ -116,7 +116,7 @@ change demands_, never its size.
 Ask each question through the **AskUserQuestion** tool (the interactive question UI), **one call
 per question** — never batch them, because you must grade and teach between questions.
 
-- One question per `AskUserQuestion` call. Give it **four** options: exactly one correct, three
+- One question per `AskUserQuestion` call. Give it **three** options: exactly one correct, two
   **strong distractors** — near-misses a shallow reader would pick (right mechanism, wrong detail;
   a plausible-but-absent behavior; the reverse of the real cause). Weak/silly options make it
   guessable and waste the question. The tool always adds "Other" so a user who actually understands
@@ -128,10 +128,10 @@ per question** — never batch them, because you must grade and teach between qu
 - **Randomize the correct option's position** — do not default it to first (that's a tell; a user
   learns to pick option 1 and stops thinking). Ignore the tool's "recommended option first"
   convention here — a quiz has no recommendation. For question `N` (1–5), place the correct option
-  at slot `(hex(N) mod 4) + 1`, where `hex(N)` = the decimal value (0–15) of the `N`th-from-last
+  at slot `(hex(N) mod 3) + 1`, where `hex(N)` = the decimal value (0–15) of the `N`th-from-last
   hex character of the full `HEAD` sha. Each question's slot comes from a different sha character,
   so slots don't follow a pattern across questions and vary per commit — spotting one answer's
-  position reveals nothing about the next. Fill the other three slots with the distractors in any
+  position reveals nothing about the next. Fill the other two slots with the distractors in any
   order.
 - After they answer, grade: **correct / partial / missed**. Say which, give the real answer and
   _why it matters_. Strict grader — a distractor that's "close" is still missed. A free-typed
@@ -208,7 +208,7 @@ lets them propose the next change. It **never** touches the pass-marker or the g
   domain-invariant's history, rejected-alternative. Don't force categories that don't apply here.
 - Skip subjects already covered — by the base round and by any earlier deepen round this session.
   Each round should open _new_ ground; track what's been asked.
-- Administer the same way as Step 4: one `AskUserQuestion` call per question, four options with
+- Administer the same way as Step 4: one `AskUserQuestion` call per question, three options with
   strong distractors, randomized correct slot, grade and teach after each. Deeper questions lean
   more on the "Other" free-response path — reward a well-argued answer even if it's not the option.
 - These are open-ended by nature (design judgment, tradeoffs). Grade on _reasoning quality_, not a
