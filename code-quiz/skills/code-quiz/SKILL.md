@@ -45,10 +45,20 @@ Also gather context the diff alone doesn't show, so questions can be grounded an
 - If the diff is huge (say >800 lines or >20 files), tell the user you'll quiz on the **2–3
   highest-risk areas** rather than everything, and name which. Don't silently skip; say what's out.
 
-## Step 2 — Write a short literate explainer
+## Step 2 — Orient, then write a short literate explainer
 
-Before any question, give the user a tight briefing so the quiz tests _understanding_, not
-whether they happened to read one line. Keep it to what's needed — intuition before details:
+Open with a **quick orientation** before anything else, so the user knows what's happening and
+what's under test. Three or four lines, no more:
+
+- What this is: "I'm going to brief you on this change, then quiz you with five comprehension
+  questions. You pass when you can explain how it works."
+- What's under test: the current branch (`git branch --show-current`), the base it's diffed
+  against, and the commit under quiz (`HEAD` short sha).
+- The shape of the change: one line — N commits, N files, and the stated intent (PR title or
+  commit subject).
+
+Then give the user a tight briefing so the quiz tests _understanding_, not whether they happened
+to read one line. Keep it to what's needed — intuition before details:
 
 1. **Background** — what existed before this change and why (one or two sentences per touched area).
 2. **The idea** — the goal of the change in plain language, before any code.
