@@ -185,6 +185,7 @@ per question** — never batch them, because you must grade and teach between qu
 
   Strict grader — a distractor that's "close" is still missed. A free-typed "Other" answer that's
   vague on a load-bearing point is partial at best.
+
 - **Every question carries a fourth option: "I don't know — tell me."** (One option, not two —
   the tool caps at four options and the three content options use three slots.) Its `description`:
   admit it and get the full explanation. Always place it last so it's never confused with a

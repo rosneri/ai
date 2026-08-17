@@ -79,9 +79,7 @@ for (const skillDir of skillDirs) {
   }
 
   // No nested subdirectories (one level deep only)
-  const subdirs = fs
-    .readdirSync(skillDir, { withFileTypes: true })
-    .filter((e) => e.isDirectory());
+  const subdirs = fs.readdirSync(skillDir, { withFileTypes: true }).filter((e) => e.isDirectory());
 
   for (const sub of subdirs) {
     const nested = fs
@@ -89,10 +87,7 @@ for (const skillDir of skillDirs) {
       .filter((e) => e.isDirectory());
 
     for (const n of nested) {
-      error(
-        skillDir,
-        `Nested subdirectory: ${sub.name}/${n.name} (max one level deep)`,
-      );
+      error(skillDir, `Nested subdirectory: ${sub.name}/${n.name} (max one level deep)`);
     }
   }
 }

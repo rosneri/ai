@@ -42,11 +42,11 @@ Write the list of cases in plain language. This is the deliverable of this phase
 
 Present it as a table or numbered list. For each case give:
 
-| Field    | Content                                                     |
-| -------- | ----------------------------------------------------------- |
-| Case     | One sentence, behavioral: "returns 429 body unchanged"      |
-| Given    | The starting state or input                                 |
-| Expect   | The observable outcome that makes it pass                   |
+| Field  | Content                                                |
+| ------ | ------------------------------------------------------ |
+| Case   | One sentence, behavioral: "returns 429 body unchanged" |
+| Given  | The starting state or input                            |
+| Expect | The observable outcome that makes it pass              |
 
 Also state, above the list:
 
