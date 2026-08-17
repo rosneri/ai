@@ -45,6 +45,11 @@
       "description": "Debug a running Node.js process via CDP (Chrome DevTools Protocol). Set breakpoints, step through code, inspect variables, and evaluate expressions \u2014 all headless, no GUI needed."
     },
     {
+      "name": "tdd",
+      "source": "./tdd",
+      "description": "Test-driven development loop with a human gate. Writes the test cases first as a plain-language list, stops for your confirmation or edits, asks about anything uncertain, then writes the test bodies, runs them to confirm RED, implements the task, and runs again to confirm GREEN."
+    },
+    {
       "name": "thinking",
       "source": "./thinking",
       "description": "Structured thinking tools. Currently ships n-order-consequences: trace second-, third-, and nth-order effects of a decision or change so you don't stop at first-order thinking."

@@ -16,7 +16,7 @@ jobs:
       - uses: actions/checkout@v6
 
       - name: Run shellcheck on all scripts
-        run: shellcheck ci/scripts/*.sh
+        run: shellcheck .ci/scripts/*.sh
 
   detect-changes:
     name: Detect Changed Skills
@@ -35,7 +35,7 @@ jobs:
         id: detect
         env:
           BASE_REF: ${{ github.event.pull_request.base.ref }}
-        run: ci/scripts/detect-changes.sh
+        run: .ci/scripts/detect-changes.sh
 
       - name: Check API key availability
         id: check-key
@@ -57,7 +57,7 @@ jobs:
       - uses: actions/checkout@v6
 
       - name: Validate SKILL.md structure
-        run: echo "${{ needs.detect-changes.outputs.changed_skills }}" | ci/scripts/validate-structure.sh
+        run: echo "${{ needs.detect-changes.outputs.changed_skills }}" | .ci/scripts/validate-structure.sh
 
   format-check:
     name: Format Check
@@ -69,16 +69,16 @@ jobs:
 
       - name: Install dependencies
         run: bun install --frozen-lockfile
-        working-directory: ci
+        working-directory: .ci
 
       - name: Check formatting
-        run: ci/node_modules/.bin/oxfmt --check .
+        run: .ci/node_modules/.bin/oxfmt --check -c .ci/.oxfmtrc.json .
 
       - name: Lint JS/CJS files
-        run: ci/node_modules/.bin/oxlint .
+        run: .ci/node_modules/.bin/oxlint -c .ci/.oxlintrc.json .
 
       - name: Scan for secrets
-        run: ci/node_modules/.bin/secretlint --secretlintrc .secretlintrc.json '**/*'
+        run: .ci/node_modules/.bin/secretlint --secretlintrc .ci/.secretlintrc.json '**/*'
 
   check-readme:
     name: Check README Listing
@@ -89,7 +89,7 @@ jobs:
       - uses: actions/checkout@v6
 
       - name: Verify skills are listed in README
-        run: echo "${{ needs.detect-changes.outputs.changed_skills }}" | ci/scripts/check-readme.sh
+        run: echo "${{ needs.detect-changes.outputs.changed_skills }}" | .ci/scripts/check-readme.sh
 
   lint-skills:
     name: Lint Skill Structure
@@ -102,7 +102,7 @@ jobs:
       - name: Lint changed skills
         env:
           CHANGED_SKILLS: ${{ needs.detect-changes.outputs.changed_skills }}
-        run: echo "$CHANGED_SKILLS" | xargs node ci/scripts/lint-skills.cjs
+        run: echo "$CHANGED_SKILLS" | xargs node .ci/scripts/lint-skills.cjs
 
   ai-duplicate-check:
     name: "AI: Duplicate Check (${{ matrix.skill }})"
@@ -124,7 +124,7 @@ jobs:
       - name: Prepare prompt
         id: prompt
         run: |
-          PROMPT=$(sed 's/\$SKILL/${{ matrix.skill }}/g' ci/prompts/duplicate-check.md)
+          PROMPT=$(sed 's/\$SKILL/${{ matrix.skill }}/g' .ci/prompts/duplicate-check.md)
           {
             echo "prompt<<EOF"
             echo "$PROMPT"
@@ -172,7 +172,7 @@ jobs:
           sed '/\$SKILLS/{
             r /tmp/skills.md
             d
-          }' ci/prompts/quality-review.md > /tmp/prompt.md
+          }' .ci/prompts/quality-review.md > /tmp/prompt.md
           {
             echo "prompt<<EOF"
             cat /tmp/prompt.md

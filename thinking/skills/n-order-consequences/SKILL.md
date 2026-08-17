@@ -53,7 +53,7 @@ Build the chain order by order. For each order:
 
 1. Take every consequence from the previous order (order 0 = the action itself).
 2. For each, ask **"and then what?"** across these lenses — use the ones that fit, don't force all:
-   - **Behavior** — how do people/systems *adapt* to the new state? Adaptation, not the state
+   - **Behavior** — how do people/systems _adapt_ to the new state? Adaptation, not the state
      itself, is where second-order effects come from (incentives, workarounds, Goodhart effects).
    - **Time** — what compounds, decays, or only shows up later? (Tech debt interest, trust
      erosion, network effects.)
@@ -66,7 +66,7 @@ Build the chain order by order. For each order:
    pruned and why.
 
 Mark each consequence with a rough **likelihood** (likely / plausible / speculative) and
-**valence** (good / bad / mixed). Don't only hunt downsides — second-order *benefits* (learning
+**valence** (good / bad / mixed). Don't only hunt downsides — second-order _benefits_ (learning
 effects, optionality, trust built) are equally invisible to first-order thinking.
 
 ## Step 3 — Present the map

@@ -1,0 +1,8 @@
+{
+  "name": "tdd",
+  "description": "Test-driven development loop with a human gate. Writes the test cases first as a plain-language list, stops for your confirmation or edits, asks about anything uncertain, then writes the test bodies, runs them to confirm RED, implements the task, and runs again to confirm GREEN.",
+  "version": "0.1.0",
+  "author": {
+    "name": "rosneri"
+  }
+}
