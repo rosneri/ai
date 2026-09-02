@@ -35,6 +35,11 @@
       "description": "Git operations enforcer - manages branches, commits, and pull requests with strict naming conventions and quality gates"
     },
     {
+      "name": "guide-writer",
+      "source": "./guide-writer",
+      "description": "Write clear, minimal guides — how-tos, tutorials, runbooks — with verified steps, annotated screenshots, and Mermaid diagrams. One reader, one goal, one path: Diátaxis shape, Google-style procedures, Carroll minimalism."
+    },
+    {
       "name": "helix-teacher",
       "source": "./helix-teacher",
       "description": "Teaches Helix editor by analyzing the user's existing configuration, explaining keybindings and LSP setup, and answering questions. Use when the user asks about Helix, their helix config, keybindings, LSP setup, themes, or wants help setting up or learning Helix. Also triggers on \"helix keybindings\", \"explain my helix config\", \"helix setup\", \"learn helix\", or \"hx config\"."

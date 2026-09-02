@@ -1,0 +1,8 @@
+{
+  "name": "guide-writer",
+  "description": "Write clear, minimal guides (how-tos and tutorials) with verified steps, annotated screenshots, and Mermaid diagrams. One reader, one goal, one path — Diátaxis shape, Google-style procedures, Carroll minimalism.",
+  "version": "0.1.0",
+  "author": {
+    "name": "rosneri"
+  }
+}
