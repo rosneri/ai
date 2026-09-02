@@ -1,0 +1,8 @@
+{
+  "name": "moon-statusline",
+  "description": "Two-line Claude Code status line for moon monorepos. Line 1: model, moon project and its deploy target, worktree, git state, PR. Line 2: context bar, cost, lines changed, rate limits, prompt cache.",
+  "version": "0.1.0",
+  "author": {
+    "name": "rosneri"
+  }
+}

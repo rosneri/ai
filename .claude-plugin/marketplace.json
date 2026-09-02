@@ -40,6 +40,11 @@
       "description": "Teaches Helix editor by analyzing the user's existing configuration, explaining keybindings and LSP setup, and answering questions. Use when the user asks about Helix, their helix config, keybindings, LSP setup, themes, or wants help setting up or learning Helix. Also triggers on \"helix keybindings\", \"explain my helix config\", \"helix setup\", \"learn helix\", or \"hx config\"."
     },
     {
+      "name": "moon-statusline",
+      "source": "./moon-statusline",
+      "description": "Two-line Claude Code status line for moon monorepos: model, moon project and deploy target, worktree, git state, PR on line 1; context bar, cost, lines changed, rate limits, prompt cache on line 2."
+    },
+    {
       "name": "neovim-teacher",
       "source": "./neovim-teacher",
       "description": "Teaches Neovim by analyzing the user's existing configuration, explaining installed plugins and keymaps, and answering questions. Use when the user asks about Neovim, Vim, their nvim config, plugins, keymaps, LSP setup, or wants help setting up or learning Neovim. Also triggers on \"what plugins do I have\", \"explain my neovim\", \"neovim setup\", or \"learn vim\"."
