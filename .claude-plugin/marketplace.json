@@ -7,17 +7,22 @@
     {
       "name": "bruno",
       "source": "./bruno",
-      "description": "Bruno API client skill \u2014 .bru file format, JavaScript API reference, authentication patterns, testing with Chai.js, and Git-first collection management."
+      "description": "Bruno API client skill — .bru file format, JavaScript API reference, authentication patterns, testing with Chai.js, and Git-first collection management."
     },
     {
       "name": "code-quiz",
       "source": "./code-quiz",
-      "description": "Before you open a PR, prove you understand the code the agent wrote. Generates a literate explainer of the diff, then quizzes you with five comprehension questions that probe how the change actually works \u2014 mechanism, blast radius, design trade-offs, and edge cases. You don't pass until you can explain it. A 'speed regulator' that stops AI from outrunning your understanding (inspired by Geoffrey Litt's explain-diff quiz and usegater.app)."
+      "description": "Before you open a PR, prove you understand the code the agent wrote. Generates a literate explainer of the diff, then quizzes you with five comprehension questions that probe how the change actually works — mechanism, blast radius, design trade-offs, and edge cases. You don't pass until you can explain it. A 'speed regulator' that stops AI from outrunning your understanding (inspired by Geoffrey Litt's explain-diff quiz and usegater.app)."
     },
     {
       "name": "ddd-architecture",
       "source": "./ddd-architecture",
       "description": "Review feature code against DDD and hexagonal architecture principles. Validates domain entities, value objects, use cases, adapters, folder structure, file naming, and test placement."
+    },
+    {
+      "name": "evolve",
+      "source": "./evolve",
+      "description": "Self-evolving skills. Injects a per-skill instructions file (~/.evolutions/<skill>.md, or a folder in your Obsidian vault) on top of every skill invocation and tells Claude to append durable lessons there. You and Claude both edit the file, so skills keep improving without touching plugin source."
     },
     {
       "name": "feature-planner",
@@ -42,7 +47,7 @@
     {
       "name": "node-debug",
       "source": "./node-debug",
-      "description": "Debug a running Node.js process via CDP (Chrome DevTools Protocol). Set breakpoints, step through code, inspect variables, and evaluate expressions \u2014 all headless, no GUI needed."
+      "description": "Debug a running Node.js process via CDP (Chrome DevTools Protocol). Set breakpoints, step through code, inspect variables, and evaluate expressions — all headless, no GUI needed."
     },
     {
       "name": "tdd",

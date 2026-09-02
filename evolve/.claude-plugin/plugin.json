@@ -1,0 +1,8 @@
+{
+  "name": "evolve",
+  "description": "Self-evolving skills. Every skill invocation gets a per-skill instructions file (~/.evolutions/<skill>.md, or a folder in your Obsidian vault) injected on top of its SKILL.md. Both you and Claude edit that file: Claude records corrections and better approaches as it works, you inspect and rewrite them. Skills keep improving without touching the plugin source.",
+  "version": "0.1.0",
+  "author": {
+    "name": "rosneri"
+  }
+}
