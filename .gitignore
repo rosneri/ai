@@ -2,3 +2,4 @@ node_modules/
 .context/
 .claude/worktrees/
 .serena/
+package-lock.json

@@ -5,10 +5,35 @@ Claude a workflow, a domain, or a set of conventions.
 
 ## Install
 
+### Claude Code
+
 ```
 /plugin marketplace add rosneri/ai
 /plugin install <plugin-name>@rosneri
 ```
+
+### Prime Agent
+
+The repo doubles as a [Prime Agent](https://github.com/PrimeIntellect-ai/prime-agent) capability
+package: the root `package.json` maps `./*/skills` into `pi.skills`, so every plugin's skill loads.
+
+```bash
+prime-agent package install git:github.com/rosneri/ai
+prime-agent package install git:github.com/rosneri/ai@v1   # pin a tag
+prime-agent -e git:github.com/rosneri/ai                   # try it for one run
+```
+
+Two things to know. Prime Agent has no per-subdirectory install — one repo is one package, so you
+get all the skills and narrow them afterwards with `prime-agent config` or a settings filter:
+
+```json
+{
+  "packages": [{ "source": "git:github.com/rosneri/ai", "skills": ["tdd/skills/**"] }]
+}
+```
+
+And a skill of the same name already in `~/.agents/skills/` or `~/.prime/agent/skills/` **wins** over
+the package copy, which is then dropped with a collision warning. Keep each skill in one place.
 
 ## Skills
 
