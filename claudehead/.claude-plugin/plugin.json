@@ -1,0 +1,8 @@
+{
+  "name": "claudehead",
+  "description": "Run Claude Code through the Headroom compression proxy, but only when that proxy passes a real health check — otherwise plain claude. Probes /readyz and /health, requires service headroom-proxy and ready:true, refuses to bind over a foreign port, and starts a detached proxy when none is running.",
+  "version": "1.0.0",
+  "author": {
+    "name": "rosneri"
+  }
+}

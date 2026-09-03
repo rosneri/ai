@@ -1,0 +1,373 @@
+#!/usr/bin/env bash
+# claudehead — launch Claude Code through the Headroom compression proxy when that
+# proxy is provably healthy, and through plain `claude` when it is not.
+#
+# The gate is a real HTTP health probe (/readyz, then /health) against the
+# proxy port. Only a 200 that identifies itself as `headroom-proxy` and
+# reports `ready: true` counts as healthy; every other outcome falls back to
+# plain Claude Code, so a broken proxy can never cost you a session.
+#
+# Note: `headroom wrap claude` registers the headroom and serena MCP servers in
+# ~/.claude.json globally, so they load in plain sessions too. Opt out with
+# CLAUDEHEAD_WRAP_ARGS=--no-mcp, or undo it with `claudehead --claudehead-unwrap`.
+#
+# Written for bash 3.2 (stock macOS).
+# https://github.com/rosneri/claudehead
+
+set -uo pipefail
+
+CLAUDEHEAD_VERSION="1.0.0"
+
+# ---------------------------------------------------------------- config ----
+PORT="${CLAUDEHEAD_PORT:-8787}"
+HOST="${CLAUDEHEAD_HOST:-127.0.0.1}"
+MODE="${CLAUDEHEAD_MODE:-auto}"                     # auto | headroom | plain
+PROBE_TIMEOUT="${CLAUDEHEAD_PROBE_TIMEOUT:-2}"      # seconds per health request
+READY_TIMEOUT="${CLAUDEHEAD_READY_TIMEOUT:-45}"     # seconds to wait for readiness
+TOOL_SEARCH="${CLAUDEHEAD_TOOL_SEARCH:-true}"       # keep Claude Code tool deferral alive
+ONE_M="${CLAUDEHEAD_1M:-0}"                         # 1 => pass --1m to headroom
+QUIET="${CLAUDEHEAD_QUIET:-0}"
+NO_START="${CLAUDEHEAD_NO_START:-0}"                # 1 => only reuse a running proxy
+
+STATE_DIR="${CLAUDEHEAD_STATE_DIR:-${XDG_STATE_HOME:-$HOME/.local/state}/claudehead}"
+
+refresh_paths() {
+  BASE="http://$HOST:$PORT"
+  LOG_FILE="$STATE_DIR/proxy-$PORT.log"
+  PID_FILE="$STATE_DIR/proxy-$PORT.pid"
+}
+refresh_paths
+
+# --------------------------------------------------------------- plumbing ----
+if [ -t 2 ]; then
+  C_DIM=$'\033[2m'; C_RED=$'\033[31m'; C_GRN=$'\033[32m'; C_YEL=$'\033[33m'; C_OFF=$'\033[0m'
+else
+  C_DIM=""; C_RED=""; C_GRN=""; C_YEL=""; C_OFF=""
+fi
+
+log()  { [ "$QUIET" = "1" ] || printf '%s\n' "${C_DIM}claudehead:${C_OFF} $*" >&2; }
+warn() { printf '%s\n' "${C_YEL}claudehead:${C_OFF} $*" >&2; }
+die()  { printf '%s\n' "${C_RED}claudehead:${C_OFF} $*" >&2; exit 1; }
+
+JQ="$(command -v jq 2>/dev/null || true)"
+
+# The health payload is flat, so jq is a convenience, not a requirement.
+json_str() {
+  local body="$1" key="$2"
+  if [ -n "$JQ" ]; then
+    printf '%s' "$body" | "$JQ" -r --arg k "$key" '.[$k] // empty' 2>/dev/null
+  else
+    printf '%s' "$body" \
+      | sed -n "s/.*\"$key\"[[:space:]]*:[[:space:]]*\"\([^\"]*\)\".*/\1/p" | head -1
+  fi
+}
+
+json_true() {
+  local body="$1" key="$2" val
+  if [ -n "$JQ" ]; then
+    val="$(printf '%s' "$body" | "$JQ" -r --arg k "$key" '.[$k] // empty' 2>/dev/null)"
+  else
+    val="$(printf '%s' "$body" \
+      | sed -n "s/.*\"$key\"[[:space:]]*:[[:space:]]*\(true\|false\).*/\1/p" | head -1)"
+  fi
+  [ "$val" = "true" ]
+}
+
+# ------------------------------------------------------------ health probe ----
+# PROBE_STATE is the whole decision:
+#   healthy  — a headroom proxy is ready to take traffic
+#   starting — headroom is answering but reports ready:false (still warming)
+#   foreign  — the port is held by something that is not headroom
+#   closed   — nothing is listening
+PROBE_STATE="closed"; PROBE_VERSION=""; PROBE_ENDPOINT=""; PROBE_REASON=""
+
+probe_headroom() {
+  PROBE_STATE="closed"; PROBE_VERSION=""; PROBE_ENDPOINT=""
+  PROBE_REASON="nothing listening on $BASE"
+  local path raw code body svc
+
+  # /readyz is the orchestration probe — it 503s until every subsystem is up.
+  # /health always answers 200, so there its *body* is the signal; it is also
+  # the fallback for proxy builds that predate /readyz.
+  for path in /readyz /health; do
+    raw="$(curl -sS --max-time "$PROBE_TIMEOUT" -w $'\n%{http_code}' "$BASE$path" 2>/dev/null)" \
+      || continue
+    code="${raw##*$'\n'}"
+    body="${raw%$'\n'*}"
+
+    # curl completed a request, so something owns this port.
+    if [ "$PROBE_STATE" = "closed" ]; then
+      PROBE_STATE="foreign"
+      PROBE_REASON="port $PORT answers $path with HTTP $code but is not a headroom proxy"
+    fi
+
+    svc="$(json_str "$body" service)"
+    [ "$svc" = "headroom-proxy" ] || continue
+
+    if [ "$code" = "200" ] && json_true "$body" ready; then
+      PROBE_VERSION="$(json_str "$body" version)"
+      PROBE_ENDPOINT="$path"
+      PROBE_STATE="healthy"; PROBE_REASON=""
+      return 0
+    fi
+
+    PROBE_STATE="starting"
+    PROBE_VERSION="$(json_str "$body" version)"
+    PROBE_REASON="headroom-proxy ${PROBE_VERSION:-?} on port $PORT reports status=$(json_str "$body" status) (HTTP $code on $path)"
+  done
+
+  return 1
+}
+
+# Poll until healthy. With a pid argument, give up early if that process dies.
+wait_ready() {
+  local pid="${1:-}" waited=0
+  while [ "$waited" -lt "$READY_TIMEOUT" ]; do
+    if [ -n "$pid" ] && ! kill -0 "$pid" 2>/dev/null; then
+      warn "proxy exited during startup; last lines of $LOG_FILE:"
+      tail -n 12 "$LOG_FILE" >&2 2>/dev/null || true
+      return 1
+    fi
+    probe_headroom && { log "proxy ready in ${waited}s"; return 0; }
+    sleep 1
+    waited=$((waited + 1))
+    [ $((waited % 10)) -eq 0 ] && log "waiting for proxy… (${waited}s/${READY_TIMEOUT}s)"
+  done
+  warn "proxy not ready after ${READY_TIMEOUT}s (${PROBE_REASON})"
+  return 1
+}
+
+# --------------------------------------------------------- binary discovery ----
+# Resolve real Claude Code, skipping this script. bash's -ef compares inodes
+# through symlinks, so a stray `claude -> claudehead` link cannot cause recursion.
+find_claude() {
+  local dir cand
+  local IFS=:
+  for dir in $PATH; do
+    cand="${dir:-.}/claude"
+    [ -f "$cand" ] && [ -x "$cand" ] || continue
+    [ "$cand" -ef "${BASH_SOURCE[0]}" ] && continue
+    printf '%s' "$cand"; return 0
+  done
+  unset IFS
+  for cand in "$HOME/.local/bin/claude" "$HOME/.claude/local/claude" \
+              /opt/homebrew/bin/claude /usr/local/bin/claude "$HOME/.bun/bin/claude"; do
+    [ -f "$cand" ] && [ -x "$cand" ] || continue
+    [ "$cand" -ef "${BASH_SOURCE[0]}" ] && continue
+    printf '%s' "$cand"; return 0
+  done
+  return 1
+}
+
+CLAUDE_BIN=""
+resolve_claude() {
+  CLAUDE_BIN="$(find_claude)" || die \
+    "Claude Code not found. Install it first: https://docs.claude.com/en/docs/claude-code"
+  # `headroom wrap claude` finds the binary with shutil.which, so put its
+  # directory on PATH even when we located it outside PATH.
+  case ":$PATH:" in
+    *":$(dirname "$CLAUDE_BIN"):"*) ;;
+    *) PATH="$(dirname "$CLAUDE_BIN"):$PATH"; export PATH ;;
+  esac
+}
+
+HEADROOM_BIN="$(command -v headroom 2>/dev/null || true)"
+if [ -z "$HEADROOM_BIN" ]; then
+  for c in "$HOME/.local/bin/headroom" "$HOME/.local/share/uv/tools/headroom-ai/bin/headroom"; do
+    [ -x "$c" ] && { HEADROOM_BIN="$c"; break; }
+  done
+fi
+
+# ------------------------------------------------------------ proxy control ----
+start_proxy() {
+  mkdir -p "$STATE_DIR"
+  log "starting headroom proxy on port $PORT ${C_DIM}(log: $LOG_FILE)${C_OFF}"
+  printf '\n===== claudehead %s: proxy start %s =====\n' \
+    "$CLAUDEHEAD_VERSION" "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" >>"$LOG_FILE" 2>/dev/null
+
+  # Detached on purpose: the proxy outlives this Claude session so the next
+  # `claudehead` reuses a warm one instead of paying startup again.
+  nohup "$HEADROOM_BIN" proxy --port "$PORT" >>"$LOG_FILE" 2>&1 &
+  local pid=$!
+  printf '%s\n' "$pid" >"$PID_FILE"
+  disown "$pid" 2>/dev/null || true
+
+  wait_ready "$pid" && return 0
+  stop_proxy quiet
+  return 1
+}
+
+stop_proxy() {
+  local quiet="${1:-}" pid n=0
+  if [ ! -f "$PID_FILE" ]; then
+    [ -n "$quiet" ] || log "claudehead has no proxy recorded on port $PORT"
+    return 0
+  fi
+  pid="$(cat "$PID_FILE" 2>/dev/null || true)"
+  if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
+    kill "$pid" 2>/dev/null || true
+    while [ "$n" -lt 10 ] && kill -0 "$pid" 2>/dev/null; do sleep 1; n=$((n + 1)); done
+    kill -0 "$pid" 2>/dev/null && kill -9 "$pid" 2>/dev/null
+    [ -n "$quiet" ] || log "stopped proxy (pid $pid)"
+  else
+    [ -n "$quiet" ] || log "recorded proxy (pid ${pid:-?}) is not running"
+  fi
+  rm -f "$PID_FILE"
+}
+
+# ------------------------------------------------------------------ actions ----
+print_status() {
+  printf 'claudehead  %s\n' "$CLAUDEHEAD_VERSION"
+  printf 'probe       %s{/readyz,/health}\n' "$BASE"
+  printf 'mode        %s\n' "$MODE"
+  if [ -n "$HEADROOM_BIN" ]; then
+    printf 'headroom    %s (%s)\n' \
+      "$("$HEADROOM_BIN" --version 2>/dev/null | tr -d '\n' || echo '?')" "$HEADROOM_BIN"
+  else
+    printf 'headroom    %snot installed%s\n' "$C_RED" "$C_OFF"
+  fi
+  local cb; cb="$(find_claude || true)"
+  printf 'claude      %s\n' "${cb:-${C_RED}not found${C_OFF}}"
+  probe_headroom || true
+  case "$PROBE_STATE" in
+    healthy)
+      printf 'proxy       %shealthy%s — headroom-proxy %s via %s\n' \
+        "$C_GRN" "$C_OFF" "${PROBE_VERSION:-?}" "$PROBE_ENDPOINT"
+      printf 'decision    %suse headroom%s\n' "$C_GRN" "$C_OFF" ;;
+    starting)
+      printf 'proxy       %sstarting%s — %s\n' "$C_YEL" "$C_OFF" "$PROBE_REASON"
+      printf 'decision    %swait for readiness, then headroom%s\n' "$C_YEL" "$C_OFF" ;;
+    foreign)
+      printf 'proxy       %sforeign%s — %s\n' "$C_RED" "$C_OFF" "$PROBE_REASON"
+      printf 'decision    %splain claude%s (port taken; claudehead will not bind over it)\n' "$C_RED" "$C_OFF" ;;
+    *)
+      printf 'proxy       %snot running%s — %s\n' "$C_DIM" "$C_OFF" "$PROBE_REASON"
+      printf 'decision    start a proxy, then headroom if it turns healthy\n' ;;
+  esac
+  [ -f "$PID_FILE" ] && printf 'pidfile     %s (pid %s)\n' "$PID_FILE" "$(cat "$PID_FILE" 2>/dev/null)"
+  printf 'log         %s\n' "$LOG_FILE"
+}
+
+print_help() {
+  cat <<HELP
+claudehead $CLAUDEHEAD_VERSION — Claude Code through Headroom, gated on a real health check.
+
+Usage:
+  claudehead [claude args...]            Probe headroom; use it if healthy, else plain claude
+  claudehead --claudehead-status         Show install + proxy health and the routing decision
+  claudehead --claudehead-stop           Stop the proxy claudehead started on port $PORT
+  claudehead --claudehead-logs           Tail the proxy log
+  claudehead --claudehead-plain [args]   Force plain claude (skip the probe)
+  claudehead --claudehead-headroom [..]  Require headroom; fail instead of falling back
+  claudehead --claudehead-port N [args]  Use port N for this run
+  claudehead --claudehead-unwrap         Undo headroom's durable setup (MCP servers, hooks)
+  claudehead --claudehead-help           This help
+  claudehead --claudehead-version        Print claudehead's version
+
+Every other argument passes through to Claude Code untouched.
+
+Environment:
+  CLAUDEHEAD_PORT            Proxy port (default 8787)
+  CLAUDEHEAD_HOST            Proxy host (default 127.0.0.1)
+  CLAUDEHEAD_MODE            auto | headroom | plain (default auto)
+  CLAUDEHEAD_READY_TIMEOUT   Seconds to wait for a cold proxy (default 45)
+  CLAUDEHEAD_PROBE_TIMEOUT   Seconds per health request (default 2)
+  CLAUDEHEAD_TOOL_SEARCH     Preserve tool deferral: true|auto|auto:N|false (default true)
+  CLAUDEHEAD_1M              1 => keep the 1M context window through the proxy
+  CLAUDEHEAD_NO_START        1 => never start a proxy, only reuse a running one
+  CLAUDEHEAD_QUIET           1 => suppress the routing line
+  CLAUDEHEAD_WRAP_ARGS       Extra args appended to \`headroom wrap claude\`
+HELP
+}
+
+# ------------------------------------------------------------------- launch ----
+run_plain() {
+  local reason="$1"; shift
+  resolve_claude
+  log "using ${C_YEL}plain claude${C_OFF}${reason:+ — $reason}"
+  exec "$CLAUDE_BIN" "$@"
+}
+
+run_headroom() {
+  resolve_claude
+  local wrap_args
+  wrap_args=(wrap claude --no-proxy --port "$PORT")
+  if [ -n "$TOOL_SEARCH" ] && [ "$TOOL_SEARCH" != "off" ]; then
+    wrap_args+=(--tool-search "$TOOL_SEARCH")
+  fi
+  [ "$ONE_M" = "1" ] && wrap_args+=(--1m)
+  if [ -n "${CLAUDEHEAD_WRAP_ARGS:-}" ]; then
+    # Deliberate word splitting: CLAUDEHEAD_WRAP_ARGS is a flag string.
+    # shellcheck disable=SC2206
+    local extra=(${CLAUDEHEAD_WRAP_ARGS})
+    wrap_args+=("${extra[@]}")
+  fi
+  log "using ${C_GRN}headroom${C_OFF} — headroom-proxy ${PROBE_VERSION:-?} healthy via ${PROBE_ENDPOINT:-probe}"
+  if [ "$#" -gt 0 ]; then
+    exec "$HEADROOM_BIN" "${wrap_args[@]}" -- "$@"
+  fi
+  exec "$HEADROOM_BIN" "${wrap_args[@]}"
+}
+
+# --------------------------------------------------------------------- main ----
+# Only --claudehead-* flags are ours; everything else belongs to Claude Code.
+ARGS=()
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --claudehead-status)   print_status; exit 0 ;;
+    --claudehead-stop)     stop_proxy; exit 0 ;;
+    --claudehead-unwrap)
+      [ -n "$HEADROOM_BIN" ] || die "headroom is not installed"
+      exec "$HEADROOM_BIN" unwrap claude --port "$PORT" ;;
+    --claudehead-logs)     mkdir -p "$STATE_DIR"; touch "$LOG_FILE"; exec tail -n 100 -f "$LOG_FILE" ;;
+    --claudehead-help)     print_help; exit 0 ;;
+    --claudehead-version)  printf 'claudehead %s\n' "$CLAUDEHEAD_VERSION"; exit 0 ;;
+    --claudehead-plain)    MODE="plain"; shift ;;
+    --claudehead-headroom) MODE="headroom"; shift ;;
+    --claudehead-port)
+      [ "$#" -ge 2 ] || die "--claudehead-port needs a port number"
+      PORT="$2"; refresh_paths; shift 2 ;;
+    *) ARGS+=("$1"); shift ;;
+  esac
+done
+set -- ${ARGS+"${ARGS[@]}"}
+
+case "$MODE" in
+  plain)         run_plain "CLAUDEHEAD_MODE=plain" "$@" ;;
+  headroom|auto) ;;
+  *)             die "CLAUDEHEAD_MODE must be auto, headroom or plain (got '$MODE')" ;;
+esac
+
+forced() { [ "$MODE" = "headroom" ]; }
+
+if [ -z "$HEADROOM_BIN" ]; then
+  forced && die "headroom is not installed — run install.sh"
+  run_plain "headroom is not installed" "$@"
+fi
+
+probe_headroom && run_headroom "$@"
+
+case "$PROBE_STATE" in
+  foreign)
+    # Never bind over another service: that is what produced the confusing
+    # "address already in use" crash this branch exists to avoid.
+    forced && die "$PROBE_REASON"
+    run_plain "$PROBE_REASON" "$@"
+    ;;
+  starting)
+    log "headroom proxy is up but still warming"
+    wait_ready && run_headroom "$@"
+    forced && die "headroom proxy never became ready ($PROBE_REASON). See $LOG_FILE"
+    run_plain "headroom proxy never became ready" "$@"
+    ;;
+esac
+
+if [ "$NO_START" = "1" ]; then
+  forced && die "no healthy proxy and CLAUDEHEAD_NO_START=1 ($PROBE_REASON)"
+  run_plain "no proxy running and CLAUDEHEAD_NO_START=1" "$@"
+fi
+
+start_proxy && probe_headroom && run_headroom "$@"
+
+forced && die "headroom proxy never became healthy (${PROBE_REASON}). See $LOG_FILE"
+run_plain "headroom proxy unavailable (${PROBE_REASON:-startup failed})" "$@"

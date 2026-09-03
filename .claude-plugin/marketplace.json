@@ -10,6 +10,11 @@
       "description": "Bruno API client skill — .bru file format, JavaScript API reference, authentication patterns, testing with Chai.js, and Git-first collection management."
     },
     {
+      "name": "claudehead",
+      "source": "./claudehead",
+      "description": "Run Claude Code through the Headroom compression proxy, but only when that proxy passes a real health check — otherwise plain claude. Probes /readyz and /health, requires service headroom-proxy and ready:true, refuses to bind over a foreign port, and starts a detached proxy when none is running."
+    },
+    {
       "name": "code-quiz",
       "source": "./code-quiz",
       "description": "Before you open a PR, prove you understand the code the agent wrote. Generates a literate explainer of the diff, then quizzes you with five comprehension questions that probe how the change actually works — mechanism, blast radius, design trade-offs, and edge cases. You don't pass until you can explain it. A 'speed regulator' that stops AI from outrunning your understanding (inspired by Geoffrey Litt's explain-diff quiz and usegater.app)."
