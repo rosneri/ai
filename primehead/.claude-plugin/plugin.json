@@ -1,0 +1,8 @@
+{
+  "name": "primehead",
+  "description": "Run Prime Agent through the Headroom compression proxy, but only when that proxy passes a real health check — otherwise plain prime-agent. Prime Agent ignores ANTHROPIC_BASE_URL, so routing goes through a per-run extension (pi.registerProvider) instead of an env var: nothing durable is written and a dead proxy can never leak into a plain session.",
+  "version": "1.0.0",
+  "author": {
+    "name": "rosneri"
+  }
+}

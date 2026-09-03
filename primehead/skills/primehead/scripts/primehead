@@ -1,0 +1,384 @@
+#!/usr/bin/env bash
+# primehead — launch Prime Agent through the Headroom compression proxy when that
+# proxy is provably healthy, and through plain `prime-agent` when it is not.
+#
+# Same gate as claudehead: a real HTTP probe (/readyz, then /health) against the
+# proxy port. Only a 200 that identifies itself as `headroom-proxy` and reports
+# `ready: true` counts as healthy; every other outcome falls back to plain
+# Prime Agent, so a broken proxy can never cost you a session.
+#
+# Two differences from claudehead, both forced by Prime Agent:
+#   * `headroom wrap` has no prime-agent target and no generic mode, so primehead
+#     talks to `headroom proxy` directly instead of shelling out to `wrap`.
+#   * Prime Agent ignores ANTHROPIC_BASE_URL. Routing goes through a per-run
+#     extension (pi.registerProvider) instead of an env var, so nothing durable
+#     is written and plain sessions stay untouched.
+#
+# Written for bash 3.2 (stock macOS).
+
+set -uo pipefail
+
+PRIMEHEAD_VERSION="1.0.0"
+
+# ---------------------------------------------------------------- config ----
+PORT="${PRIMEHEAD_PORT:-8787}"
+HOST="${PRIMEHEAD_HOST:-127.0.0.1}"
+MODE="${PRIMEHEAD_MODE:-auto}"                    # auto | headroom | plain
+PROBE_TIMEOUT="${PRIMEHEAD_PROBE_TIMEOUT:-2}"     # seconds per health request
+READY_TIMEOUT="${PRIMEHEAD_READY_TIMEOUT:-45}"    # seconds to wait for readiness
+PROVIDERS="${PRIMEHEAD_PROVIDERS:-anthropic}"     # providers to re-point
+QUIET="${PRIMEHEAD_QUIET:-0}"
+NO_START="${PRIMEHEAD_NO_START:-0}"               # 1 => only reuse a running proxy
+
+STATE_DIR="${PRIMEHEAD_STATE_DIR:-${XDG_STATE_HOME:-$HOME/.local/state}/primehead}"
+
+# Resolve the shipped extension relative to the real script, through symlinks.
+SELF="${BASH_SOURCE[0]}"
+while [ -L "$SELF" ]; do
+  link="$(readlink "$SELF")"
+  case "$link" in
+    /*) SELF="$link" ;;
+    *)  SELF="$(cd "$(dirname "$SELF")" && pwd)/$link" ;;
+  esac
+done
+SELF_DIR="$(cd "$(dirname "$SELF")" && pwd)"
+EXTENSION="${PRIMEHEAD_EXTENSION:-$SELF_DIR/../extensions/headroom-provider.ts}"
+
+refresh_paths() {
+  BASE="http://$HOST:$PORT"
+  LOG_FILE="$STATE_DIR/proxy-$PORT.log"
+  PID_FILE="$STATE_DIR/proxy-$PORT.pid"
+}
+refresh_paths
+
+# --------------------------------------------------------------- plumbing ----
+if [ -t 2 ]; then
+  C_DIM=$'\033[2m'; C_RED=$'\033[31m'; C_GRN=$'\033[32m'; C_YEL=$'\033[33m'; C_OFF=$'\033[0m'
+else
+  C_DIM=""; C_RED=""; C_GRN=""; C_YEL=""; C_OFF=""
+fi
+
+log()  { [ "$QUIET" = "1" ] || printf '%s\n' "${C_DIM}primehead:${C_OFF} $*" >&2; }
+warn() { printf '%s\n' "${C_YEL}primehead:${C_OFF} $*" >&2; }
+die()  { printf '%s\n' "${C_RED}primehead:${C_OFF} $*" >&2; exit 1; }
+
+JQ="$(command -v jq 2>/dev/null || true)"
+
+# The health payload is flat at the keys we read, so jq is a convenience.
+json_str() {
+  local body="$1" key="$2"
+  if [ -n "$JQ" ]; then
+    printf '%s' "$body" | "$JQ" -r --arg k "$key" '.[$k] // empty' 2>/dev/null
+  else
+    printf '%s' "$body" \
+      | sed -n "s/.*\"$key\"[[:space:]]*:[[:space:]]*\"\([^\"]*\)\".*/\1/p" | head -1
+  fi
+}
+
+json_true() {
+  local body="$1" key="$2" val
+  if [ -n "$JQ" ]; then
+    val="$(printf '%s' "$body" | "$JQ" -r --arg k "$key" '.[$k] // empty' 2>/dev/null)"
+  else
+    val="$(printf '%s' "$body" \
+      | sed -n "s/.*\"$key\"[[:space:]]*:[[:space:]]*\(true\|false\).*/\1/p" | head -1)"
+  fi
+  [ "$val" = "true" ]
+}
+
+# ------------------------------------------------------------ health probe ----
+# PROBE_STATE is the whole decision:
+#   healthy  — a headroom proxy is ready to take traffic
+#   starting — headroom is answering but reports ready:false (still warming)
+#   foreign  — the port is held by something that is not headroom
+#   closed   — nothing is listening
+PROBE_STATE="closed"; PROBE_VERSION=""; PROBE_ENDPOINT=""; PROBE_REASON=""
+
+probe_headroom() {
+  PROBE_STATE="closed"; PROBE_VERSION=""; PROBE_ENDPOINT=""
+  PROBE_REASON="nothing listening on $BASE"
+  local path raw code body svc
+
+  # /readyz 503s until every subsystem is up. /health always answers 200, so
+  # there the body is the signal; it also covers builds that predate /readyz.
+  for path in /readyz /health; do
+    raw="$(curl -sS --max-time "$PROBE_TIMEOUT" -w $'\n%{http_code}' "$BASE$path" 2>/dev/null)" \
+      || continue
+    code="${raw##*$'\n'}"
+    body="${raw%$'\n'*}"
+
+    if [ "$PROBE_STATE" = "closed" ]; then
+      PROBE_STATE="foreign"
+      PROBE_REASON="port $PORT answers $path with HTTP $code but is not a headroom proxy"
+    fi
+
+    svc="$(json_str "$body" service)"
+    [ "$svc" = "headroom-proxy" ] || continue
+
+    if [ "$code" = "200" ] && json_true "$body" ready; then
+      PROBE_VERSION="$(json_str "$body" version)"
+      PROBE_ENDPOINT="$path"
+      PROBE_STATE="healthy"; PROBE_REASON=""
+      return 0
+    fi
+
+    PROBE_STATE="starting"
+    PROBE_VERSION="$(json_str "$body" version)"
+    PROBE_REASON="headroom-proxy ${PROBE_VERSION:-?} on port $PORT reports status=$(json_str "$body" status) (HTTP $code on $path)"
+  done
+
+  return 1
+}
+
+# Poll until healthy. With a pid argument, give up early if that process dies.
+wait_ready() {
+  local pid="${1:-}" waited=0
+  while [ "$waited" -lt "$READY_TIMEOUT" ]; do
+    if [ -n "$pid" ] && ! kill -0 "$pid" 2>/dev/null; then
+      warn "proxy exited during startup; last lines of $LOG_FILE:"
+      tail -n 12 "$LOG_FILE" >&2 2>/dev/null || true
+      return 1
+    fi
+    probe_headroom && { log "proxy ready in ${waited}s"; return 0; }
+    sleep 1
+    waited=$((waited + 1))
+    [ $((waited % 10)) -eq 0 ] && log "waiting for proxy… (${waited}s/${READY_TIMEOUT}s)"
+  done
+  warn "proxy not ready after ${READY_TIMEOUT}s (${PROBE_REASON})"
+  return 1
+}
+
+# --------------------------------------------------------- binary discovery ----
+# Resolve real Prime Agent, skipping this script. bash's -ef compares inodes
+# through symlinks, so a stray `prime-agent -> primehead` link cannot recurse.
+find_prime() {
+  local dir cand
+  local IFS=:
+  for dir in $PATH; do
+    cand="${dir:-.}/prime-agent"
+    [ -f "$cand" ] && [ -x "$cand" ] || continue
+    [ "$cand" -ef "$SELF" ] && continue
+    printf '%s' "$cand"; return 0
+  done
+  unset IFS
+  for cand in /opt/homebrew/bin/prime-agent /usr/local/bin/prime-agent \
+              "$HOME/.local/bin/prime-agent" "$HOME/.bun/bin/prime-agent"; do
+    [ -f "$cand" ] && [ -x "$cand" ] || continue
+    [ "$cand" -ef "$SELF" ] && continue
+    printf '%s' "$cand"; return 0
+  done
+  return 1
+}
+
+PRIME_BIN=""
+resolve_prime() {
+  PRIME_BIN="$(find_prime)" || die \
+    "Prime Agent not found. Install it first: npm install -g prime-agent"
+}
+
+HEADROOM_BIN="$(command -v headroom 2>/dev/null || true)"
+if [ -z "$HEADROOM_BIN" ]; then
+  for c in "$HOME/.local/bin/headroom" "$HOME/.local/share/uv/tools/headroom-ai/bin/headroom"; do
+    [ -x "$c" ] && { HEADROOM_BIN="$c"; break; }
+  done
+fi
+
+# ------------------------------------------------------------ proxy control ----
+start_proxy() {
+  mkdir -p "$STATE_DIR"
+  log "starting headroom proxy on port $PORT ${C_DIM}(log: $LOG_FILE)${C_OFF}"
+  printf '\n===== primehead %s: proxy start %s =====\n' \
+    "$PRIMEHEAD_VERSION" "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" >>"$LOG_FILE" 2>/dev/null
+
+  # Detached on purpose: the proxy outlives this session so the next primehead
+  # reuses a warm one instead of paying startup again (~20s cold, ~0.2s warm).
+  # HEADROOM_AGENT_TYPE/HEADROOM_STACK only label traffic for headroom's stats.
+  HEADROOM_AGENT_TYPE="prime-agent" HEADROOM_STACK="wrap_prime-agent" \
+    nohup "$HEADROOM_BIN" proxy --port "$PORT" --host "$HOST" >>"$LOG_FILE" 2>&1 &
+  local pid=$!
+  printf '%s\n' "$pid" >"$PID_FILE"
+  disown "$pid" 2>/dev/null || true
+
+  wait_ready "$pid" && return 0
+  stop_proxy quiet
+  return 1
+}
+
+stop_proxy() {
+  local quiet="${1:-}" pid n=0
+  if [ ! -f "$PID_FILE" ]; then
+    [ -n "$quiet" ] || log "primehead has no proxy recorded on port $PORT"
+    return 0
+  fi
+  pid="$(cat "$PID_FILE" 2>/dev/null || true)"
+  if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
+    kill "$pid" 2>/dev/null || true
+    while [ "$n" -lt 10 ] && kill -0 "$pid" 2>/dev/null; do sleep 1; n=$((n + 1)); done
+    kill -0 "$pid" 2>/dev/null && kill -9 "$pid" 2>/dev/null
+    [ -n "$quiet" ] || log "stopped proxy (pid $pid)"
+  else
+    [ -n "$quiet" ] || log "recorded proxy (pid ${pid:-?}) is not running"
+  fi
+  rm -f "$PID_FILE"
+}
+
+# ------------------------------------------------------------------ actions ----
+print_status() {
+  printf 'primehead   %s\n' "$PRIMEHEAD_VERSION"
+  printf 'probe       %s{/readyz,/health}\n' "$BASE"
+  printf 'mode        %s\n' "$MODE"
+  printf 'providers   %s\n' "$PROVIDERS"
+  if [ -f "$EXTENSION" ]; then
+    printf 'extension   %s\n' "$EXTENSION"
+  else
+    printf 'extension   %s%s (missing)%s\n' "$C_RED" "$EXTENSION" "$C_OFF"
+  fi
+  if [ -n "$HEADROOM_BIN" ]; then
+    printf 'headroom    %s (%s)\n' \
+      "$("$HEADROOM_BIN" --version 2>/dev/null | tr -d '\n' || echo '?')" "$HEADROOM_BIN"
+  else
+    printf 'headroom    %snot installed%s\n' "$C_RED" "$C_OFF"
+  fi
+  local pb; pb="$(find_prime || true)"
+  printf 'prime-agent %s\n' "${pb:-${C_RED}not found${C_OFF}}"
+  probe_headroom || true
+  case "$PROBE_STATE" in
+    healthy)
+      printf 'proxy       %shealthy%s — headroom-proxy %s via %s\n' \
+        "$C_GRN" "$C_OFF" "${PROBE_VERSION:-?}" "$PROBE_ENDPOINT"
+      printf 'decision    %suse headroom%s\n' "$C_GRN" "$C_OFF" ;;
+    starting)
+      printf 'proxy       %sstarting%s — %s\n' "$C_YEL" "$C_OFF" "$PROBE_REASON"
+      printf 'decision    %swait for readiness, then headroom%s\n' "$C_YEL" "$C_OFF" ;;
+    foreign)
+      printf 'proxy       %sforeign%s — %s\n' "$C_RED" "$C_OFF" "$PROBE_REASON"
+      printf 'decision    %splain prime-agent%s (port taken; primehead will not bind over it)\n' "$C_RED" "$C_OFF" ;;
+    *)
+      printf 'proxy       %snot running%s — %s\n' "$C_DIM" "$C_OFF" "$PROBE_REASON"
+      printf 'decision    start a proxy, then headroom if it turns healthy\n' ;;
+  esac
+  [ -f "$PID_FILE" ] && printf 'pidfile     %s (pid %s)\n' "$PID_FILE" "$(cat "$PID_FILE" 2>/dev/null)"
+  printf 'log         %s\n' "$LOG_FILE"
+}
+
+print_help() {
+  cat <<HELP
+primehead $PRIMEHEAD_VERSION — Prime Agent through Headroom, gated on a real health check.
+
+Usage:
+  primehead [prime-agent args...]        Probe headroom; use it if healthy, else plain prime-agent
+  primehead --primehead-status           Show install + proxy health and the routing decision
+  primehead --primehead-stop             Stop the proxy primehead started on port $PORT
+  primehead --primehead-logs             Tail the proxy log
+  primehead --primehead-plain [args]     Force plain prime-agent (skip the probe)
+  primehead --primehead-headroom [..]    Require headroom; fail instead of falling back
+  primehead --primehead-port N [args]    Use port N for this run
+  primehead --primehead-help             This help
+  primehead --primehead-version          Print primehead's version
+
+Every other argument passes through to Prime Agent untouched. Management
+subcommands (model, session, mcp, package, status, doctor, ...) always run plain:
+they carry no model traffic, so there is nothing to compress.
+
+Environment:
+  PRIMEHEAD_PORT            Proxy port (default 8787, shared with claudehead)
+  PRIMEHEAD_HOST            Proxy host (default 127.0.0.1)
+  PRIMEHEAD_MODE            auto | headroom | plain (default auto)
+  PRIMEHEAD_PROVIDERS       Providers to re-point, comma-separated (default anthropic)
+  PRIMEHEAD_READY_TIMEOUT   Seconds to wait for a cold proxy (default 45)
+  PRIMEHEAD_PROBE_TIMEOUT   Seconds per health request (default 2)
+  PRIMEHEAD_NO_START        1 => never start a proxy, only reuse a running one
+  PRIMEHEAD_QUIET           1 => suppress the routing line
+  PRIMEHEAD_EXTENSION       Override the provider extension path
+HELP
+}
+
+# ------------------------------------------------------------------- launch ----
+run_plain() {
+  local reason="$1"; shift
+  resolve_prime
+  log "using ${C_YEL}plain prime-agent${C_OFF}${reason:+ — $reason}"
+  exec "$PRIME_BIN" "$@"
+}
+
+run_headroom() {
+  resolve_prime
+  [ -f "$EXTENSION" ] || die "provider extension missing: $EXTENSION"
+  log "using ${C_GRN}headroom${C_OFF} — headroom-proxy ${PROBE_VERSION:-?} healthy via ${PROBE_ENDPOINT:-probe}"
+  PRIMEHEAD_PROXY_URL="$BASE" PRIMEHEAD_PROVIDERS="$PROVIDERS" \
+    exec "$PRIME_BIN" -e "$EXTENSION" "$@"
+}
+
+# Management subcommands send no model traffic; proxying them buys nothing and
+# would only add a routing line and an extension load to every `model list`.
+is_management_command() {
+  case "${1:-}" in
+    help|agents|list|attach|stop|rename|send|schedule|status|doctor|shutdown|\
+    mcp|package|update|model|session|config) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+# --------------------------------------------------------------------- main ----
+# Only --primehead-* flags are ours; everything else belongs to Prime Agent.
+ARGS=()
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --primehead-status)   print_status; exit 0 ;;
+    --primehead-stop)     stop_proxy; exit 0 ;;
+    --primehead-logs)     mkdir -p "$STATE_DIR"; touch "$LOG_FILE"; exec tail -n 100 -f "$LOG_FILE" ;;
+    --primehead-help)     print_help; exit 0 ;;
+    --primehead-version)  printf 'primehead %s\n' "$PRIMEHEAD_VERSION"; exit 0 ;;
+    --primehead-plain)    MODE="plain"; shift ;;
+    --primehead-headroom) MODE="headroom"; shift ;;
+    --primehead-port)
+      [ "$#" -ge 2 ] || die "--primehead-port needs a port number"
+      PORT="$2"; refresh_paths; shift 2 ;;
+    *) ARGS+=("$1"); shift ;;
+  esac
+done
+set -- ${ARGS+"${ARGS[@]}"}
+
+case "$MODE" in
+  plain)         run_plain "PRIMEHEAD_MODE=plain" "$@" ;;
+  headroom|auto) ;;
+  *)             die "PRIMEHEAD_MODE must be auto, headroom or plain (got '$MODE')" ;;
+esac
+
+forced() { [ "$MODE" = "headroom" ]; }
+
+if is_management_command "${1:-}"; then
+  QUIET=1 run_plain "" "$@"
+fi
+
+if [ -z "$HEADROOM_BIN" ]; then
+  forced && die "headroom is not installed — pip/uv install 'headroom-ai[all]'"
+  run_plain "headroom is not installed" "$@"
+fi
+
+probe_headroom && run_headroom "$@"
+
+case "$PROBE_STATE" in
+  foreign)
+    # Never bind over another service: that is the confusing
+    # "address already in use" crash this branch exists to avoid.
+    forced && die "$PROBE_REASON"
+    run_plain "$PROBE_REASON" "$@"
+    ;;
+  starting)
+    log "headroom proxy is up but still warming"
+    wait_ready && run_headroom "$@"
+    forced && die "headroom proxy never became ready ($PROBE_REASON). See $LOG_FILE"
+    run_plain "headroom proxy never became ready" "$@"
+    ;;
+esac
+
+if [ "$NO_START" = "1" ]; then
+  forced && die "no healthy proxy and PRIMEHEAD_NO_START=1 ($PROBE_REASON)"
+  run_plain "no proxy running and PRIMEHEAD_NO_START=1" "$@"
+fi
+
+start_proxy && probe_headroom && run_headroom "$@"
+
+forced && die "headroom proxy never became healthy (${PROBE_REASON}). See $LOG_FILE"
+run_plain "headroom proxy unavailable (${PROBE_REASON:-startup failed})" "$@"
